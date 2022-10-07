@@ -1,9 +1,4 @@
-import {
-  existsSync,
-  PathOrFileDescriptor,
-  readFileSync,
-  writeFileSync
-} from "fs";
+import { existsSync, PathOrFileDescriptor, readFileSync, writeFileSync } from "fs";
 import * as path from "path";
 import { fetch } from "cross-fetch";
 import { JSDOM } from "jsdom";
@@ -36,7 +31,11 @@ export function formatJavascript(s: string): string {
   }
 }
 
-async function extracted(href: string, dir: string) {
+async function extracted(
+  href: string,
+  dir: string,
+  post?: (s: string) => string
+) {
   if (cache.has(href)) {
     return cache.get(href) as string;
   }
@@ -52,6 +51,7 @@ async function extracted(href: string, dir: string) {
     source = await fetch(url).then((res) => res.text());
     console.log("source from url", url);
   }
+  source = post ? post?.(source) ?? source : source;
   cache.set(href, source);
   return source;
 }
@@ -60,9 +60,10 @@ async function inlineStyles(document: Document, distDir: string) {
   const arrayLike = document.querySelectorAll("link[rel=stylesheet]");
   for (const link of Array.from(arrayLike)) {
     const href: string = link.getAttribute("href") || "";
-    let source = await extracted(href, distDir);
     const style = document.createElement("style");
-    style.textContent = formatLess(source);
+    style.textContent = await extracted(href, distDir, (s: string) => {
+      return removeSourceMap(formatLess(s)).trim();
+    });
     const parentNode = link.parentNode;
     parentNode?.appendChild(style);
     link.remove();
@@ -70,9 +71,12 @@ async function inlineStyles(document: Document, distDir: string) {
 }
 
 export function removeSourceMap(s: string) {
-  const regExp = /\/\/# sourceMappingURL=.*/g;
+  const regExp = /(\/\/)?# sourceMappingURL=.*/g;
   const nl = "\n";
-  return s.split(nl).map((line) => line.replaceAll(regExp, "")).join(nl);
+  return s
+    .split(nl)
+    .map((line) => line.replaceAll(regExp, ""))
+    .join(nl);
 }
 
 async function inlineJavascript(document: Document, dir: string) {
@@ -81,8 +85,9 @@ async function inlineJavascript(document: Document, dir: string) {
   for (const script of Array.from(arrayLike)) {
     const src: string = script.getAttribute("src") ?? "";
     script.removeAttribute("src");
-    const source = await extracted(src, dir);
-    script.textContent = removeSourceMap(formatJavascript(source)).trim();
+    script.textContent = await extracted(src, dir, (s: string) => {
+      return removeSourceMap(formatJavascript(s)).trim();
+    });
   }
 }
 
