@@ -2,12 +2,15 @@ import {
   existsSync,
   PathOrFileDescriptor,
   readFileSync,
-  writeFileSync,
+  writeFileSync
 } from "fs";
 import * as path from "path";
 import { fetch } from "cross-fetch";
 import { JSDOM } from "jsdom";
+import LRUCache from "lru-cache";
 import * as prettier from "prettier";
+
+const cache = new LRUCache<string, string>({ max: 1000 });
 
 export function formatHtml(s: string): string {
   try {
@@ -34,6 +37,10 @@ export function formatJavascript(s: string): string {
 }
 
 async function extracted(href: string, dir: string) {
+  if (cache.has(href)) {
+    return cache.get(href) as string;
+  }
+
   const url = new URL(href);
 
   const filePath = path.join(dir, url.pathname);
@@ -45,6 +52,7 @@ async function extracted(href: string, dir: string) {
     source = await fetch(url).then((res) => res.text());
     console.log("source from url", url);
   }
+  cache.set(href, source);
   return source;
 }
 
@@ -61,6 +69,12 @@ async function inlineStyles(document: Document, distDir: string) {
   }
 }
 
+export function removeSourceMap(s: string) {
+  const regExp = /\/\/# sourceMappingURL=.*/g;
+  const nl = "\n";
+  return s.split(nl).map((line) => line.replaceAll(regExp, "")).join(nl);
+}
+
 async function inlineJavascript(document: Document, dir: string) {
   // const arrayLike = document.querySelectorAll("script[src][type=module]");
   const arrayLike = document.querySelectorAll("script[src]");
@@ -68,7 +82,7 @@ async function inlineJavascript(document: Document, dir: string) {
     const src: string = script.getAttribute("src") ?? "";
     script.removeAttribute("src");
     const source = await extracted(src, dir);
-    script.textContent = formatJavascript(source);
+    script.textContent = removeSourceMap(formatJavascript(source)).trim();
   }
 }
 
@@ -80,13 +94,14 @@ export async function transformHtml(dir: string, inputHtml: string) {
   await inlineJavascript(document, dir);
 
   const html2 = document.documentElement.innerHTML;
-  return formatHtml(html2);
+  return removeSourceMap(formatHtml(html2));
 }
 
 export async function transformFile(
   dir: string,
   sourceHtml: PathOrFileDescriptor
 ) {
+  console.log("transforming", sourceHtml);
   const inputHtml: string = readFileSync(sourceHtml, "utf8");
   const outputHtml: string = await transformHtml(dir, inputHtml);
   writeFileSync(sourceHtml, outputHtml);
