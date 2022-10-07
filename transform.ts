@@ -64,6 +64,7 @@ async function inlineStyles(document: Document, distDir: string) {
     const parentNode = link.parentNode;
     link.remove();
     const style = document.createElement("style");
+    style.setAttribute("type", "text/css");
     style.textContent = await extracted(href, distDir, formatLess);
     parentNode?.appendChild(style);
   }
@@ -94,27 +95,36 @@ export async function transformHtml(dir: string, inputHtml: string) {
   const { window }: JSDOM = new JSDOM(inputHtml);
   const { document }: DOMWindow = window;
 
+  // noinspection HtmlRequiredTitleElement
+  const hasHead = inputHtml.includes("<head>");
+  const hasBody = inputHtml.includes("<body>");
+
   if (document == null) {
     throw new Error("document is null");
   }
 
-  if (!argv.includes("--no-inline-styles")) {
+  if (!argv.find((arg) => arg.startsWith("--no-inline-css"))) {
+    console.log("inlining css");
     await inlineStyles(document, dir);
   }
 
-  if (!argv.includes("--no-inline-js") || !argv.includes("-n")) {
+  if (!argv.find((arg) => arg.startsWith("--no-inline-js"))) {
+    console.log("inlining js");
     await inlineJavascript(document, dir);
   }
 
-  const documentElement = (document.documentElement ?? document.body);
-  const html2 = documentElement.outerHTML;
-  return removeSourceMap(formatHtml(html2));
+  const documentElement = document.documentElement ?? document.body;
+
+  if (hasHead && hasBody) {
+    const html2 = documentElement.innerHTML;
+    return removeSourceMap(formatHtml(html2));
+  }
+
+  const html = document.head.innerHTML + "" + document.body.innerHTML;
+  return formatHtml(html);
 }
 
-export async function transformFile(
-  dir: string,
-  sourceHtml: string
-) {
+export async function transformFile(dir: string, sourceHtml: string) {
   if (!existsSync(sourceHtml)) {
     throw new Error("file does not exist: " + sourceHtml.substring(0, 100));
   }
