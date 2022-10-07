@@ -1,9 +1,10 @@
-import { existsSync, PathOrFileDescriptor, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import * as path from "path";
 import { fetch } from "cross-fetch";
-import { JSDOM } from "jsdom";
+import { DOMWindow, JSDOM } from "jsdom";
 import LRUCache from "lru-cache";
 import * as prettier from "prettier";
+import { argv } from "./argv";
 
 const cache = new LRUCache<string, string>({ max: 1000 });
 
@@ -60,17 +61,15 @@ async function inlineStyles(document: Document, distDir: string) {
   const arrayLike = document.querySelectorAll("link[rel=stylesheet]");
   for (const link of Array.from(arrayLike)) {
     const href: string = link.getAttribute("href") || "";
-    const style = document.createElement("style");
-    style.textContent = await extracted(href, distDir, (s: string) => {
-      return removeSourceMap(formatLess(s)).trim();
-    });
     const parentNode = link.parentNode;
-    parentNode?.appendChild(style);
     link.remove();
+    const style = document.createElement("style");
+    style.textContent = await extracted(href, distDir, formatLess);
+    parentNode?.appendChild(style);
   }
 }
 
-export function removeSourceMap(s: string) {
+export function removeSourceMap(s: string): string {
   const regExp = /(\/\/)?# sourceMappingURL=.*/g;
   const nl = "\n";
   return s
@@ -92,23 +91,36 @@ async function inlineJavascript(document: Document, dir: string) {
 }
 
 export async function transformHtml(dir: string, inputHtml: string) {
-  const { window } = new JSDOM(inputHtml);
-  const document = window.document;
+  const { window }: JSDOM = new JSDOM(inputHtml);
+  const { document }: DOMWindow = window;
 
-  await inlineStyles(document, dir);
-  await inlineJavascript(document, dir);
+  if (document == null) {
+    throw new Error("document is null");
+  }
 
-  const html2 = document.documentElement.innerHTML;
+  if (!argv.includes("--no-inline-styles")) {
+    await inlineStyles(document, dir);
+  }
+
+  if (!argv.includes("--no-inline-js") || !argv.includes("-n")) {
+    await inlineJavascript(document, dir);
+  }
+
+  const documentElement = (document.documentElement ?? document.body);
+  const html2 = documentElement.outerHTML;
   return removeSourceMap(formatHtml(html2));
 }
 
 export async function transformFile(
   dir: string,
-  sourceHtml: PathOrFileDescriptor
+  sourceHtml: string
 ) {
+  if (!existsSync(sourceHtml)) {
+    throw new Error("file does not exist: " + sourceHtml.substring(0, 100));
+  }
   console.log("transforming", sourceHtml);
   const inputHtml: string = readFileSync(sourceHtml, "utf8");
   const outputHtml: string = await transformHtml(dir, inputHtml);
-  writeFileSync(sourceHtml, outputHtml);
+  writeFileSync(sourceHtml, outputHtml, "utf8");
   return outputHtml;
 }
