@@ -1,17 +1,21 @@
 {
   "name": "@mherod/html-inliner",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "",
   "bin": "dist/cli.js",
   "main": "dist/index.js",
   "module": "dist/index.es.js",
   "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "npm run build:main && npm run build:cli",
     "build:main": "parcel build --target main",
     "build:cli": "parcel build --target cli",
     "install-global": "npm run build && npm install --force --global . && find $NVM_BIN -exec chmod +x {} \\;",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublish": "npm run build"
   },
   "keywords": [],
   "author": "",
