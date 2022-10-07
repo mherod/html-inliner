@@ -44,7 +44,7 @@ or if you prefer Yarn:
 
 ## Command line
 
-    html-inliner [options] <input-directory>
+    html-inliner <input-directory> [options]
 
     Options:
       --no-inline-js        Don't inline scripts
