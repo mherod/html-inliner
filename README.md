@@ -12,7 +12,6 @@ For example, the following HTML:
         <link rel="stylesheet" href="http://example.com/style.css">
       </head>
       <body>
-        <img src="http://example.com/image.png">
         <script src="http://example.com/script.js"></script>
       </body>
     </html>
