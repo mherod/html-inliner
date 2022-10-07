@@ -34,6 +34,14 @@ Would be transformed into:
 
 # Usage
 
+## Installation
+
+    npm install -g @mherod/html-inliner
+
+or if you prefer Yarn:
+
+    yarn global add @mherod/html-inliner
+
 ## Command line
 
     html-inliner [options] <input-directory>
