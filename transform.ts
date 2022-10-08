@@ -5,6 +5,8 @@ import { DOMWindow, JSDOM } from "jsdom";
 import LRUCache from "lru-cache";
 import * as prettier from "prettier";
 import { argv } from "./argv";
+import { green, red, yellow } from "colorette";
+import mime from "mime-types";
 
 const cache = new LRUCache<string, ExtractedResource>({ max: 1000 });
 
@@ -38,14 +40,14 @@ async function fetchResource(url: URL): Promise<ExtractedResource> {
   return {
     href: url.href,
     buffer: Buffer.from(result1),
-    contentType: res.headers.get("content-type") ?? "text/javascript"
+    contentType: res.headers.get("content-type") ?? (mime.lookup(url.pathname) || "application/octet-stream")
   };
 }
 
 async function extractedResource(
   href: string,
   dir: string,
-  post?: (s: Buffer) => Buffer
+  post?: (s: Buffer) => Buffer | Promise<Buffer>
 ): Promise<ExtractedResource | undefined> {
 
   if (cache.has(href)) {
@@ -56,33 +58,75 @@ async function extractedResource(
   try {
     url = new URL(href);
   } catch (e) {
-
   }
   const pathname = url?.pathname ?? href;
   const filePath = path.join(dir, pathname);
   let buffer: Buffer;
   let extractedResource: ExtractedResource | undefined;
   if (existsSync(filePath)) {
-    console.log("source from file", filePath);
+    console.log(yellow("source from file"), filePath);
+    const contentType = mime.lookup(filePath);
+    if (!contentType) {
+      console.log(red("unknown content type"), filePath);
+      return;
+    }
     extractedResource = {
       href: href,
       buffer: readFileSync(filePath),
-      contentType: pathname.endsWith(".css") ? "text/css" : "text/javascript"
+      contentType: contentType
     };
-  } else if (url) {
-    console.log("source from url", url);
-    extractedResource = await fetchResource(url);
+  } else if (url instanceof URL) {
+    const url1: URL = url!;
+    if (url1.protocol === "http:" || url1.protocol === "https:") {
+      console.log("source from url", url1.href);
+      extractedResource = await fetchResource(url1);
+    } else if (url1.protocol === "data:") {
+      console.log("source from data url", url1.href);
+      extractedResource = {
+        href: href,
+        buffer: Buffer.from(url1.href),
+        contentType: mime.lookup(url1.pathname) || "application/octet-stream"
+      };
+    }
+  } else {
+    console.log(red("source not found"), href);
   }
   if (extractedResource?.buffer) {
     buffer = extractedResource.buffer;
-    buffer = post ? post?.(buffer) ?? buffer : buffer;
+    buffer = await (post ? post?.(buffer) ?? buffer : buffer);
     extractedResource.buffer = buffer;
     cache.set(href, extractedResource);
   }
   return extractedResource;
 }
 
-async function inlineStyles(document: Document, distDir: string) {
+async function transformStyles(s: string, dir: string) {
+  const urls = s.matchAll(/url\(([^)]+)\)/g);
+  const urls2 = Array.from(urls).map((url) => url[1]);
+  await Promise.all(urls2.map((url) => extractedResource(url, dir)));
+  const s1: string = s.replaceAll(/url\(([^)]+)\)/g, (match: string, p1: string) => {
+    if (p1.startsWith("data:")) {
+      return match;
+    }
+    let url: URL | undefined;
+    try {
+      url = new URL(p1);
+    } catch (e) {
+      console.log(red("invalid url"), p1.substring(0, 100));
+    }
+    if (!url) {
+      return match;
+    }
+    console.log("url", green(p1));
+    const s2 = url.href;
+    const resource = cache.get(s2);
+    const s3 = resource ? makeDataUrl(resource) : s2;
+    return `url('${encodeURI(s3).replaceAll(/'/g, "\\'")}')`;
+  });
+  return formatLess(s1);
+}
+
+async function inlineStyles(document: Document, dir: string) {
   const arrayLike = document.querySelectorAll("link[rel=stylesheet]");
   for (const link of Array.from(arrayLike)) {
     const href: string = link.getAttribute("href") || "";
@@ -90,10 +134,10 @@ async function inlineStyles(document: Document, distDir: string) {
     link.remove();
     const style = document.createElement("style");
     style.setAttribute("type", "text/css");
-    const resource = await extractedResource(href, distDir, (buffer: Buffer): Buffer => {
-      const s = buffer.toString("utf8");
-      const s1 = formatLess(s);
-      return Buffer.from(s1);
+    const resource = await extractedResource(href, dir, async (buffer: Buffer): Promise<Buffer> => {
+      const stylesheet: string = buffer.toString("utf8");
+      const transformedStyles = await transformStyles(stylesheet, dir);
+      return Buffer.from(transformedStyles, "utf8");
     });
     const resourceBuffer = resource?.buffer;
     if (resourceBuffer) {
@@ -133,6 +177,23 @@ async function inlineJavascript(document: Document, dir: string) {
   }
 }
 
+function makeDataUrl(resource: ExtractedResource): string {
+  const contentType: string = resource.contentType;
+  const buffer = resource?.buffer;
+  if (!buffer) {
+    return resource.href;
+  }
+  if (contentType == "image/svg+xml") {
+    const string = buffer?.toString("utf8");
+    const s1 = string?.replaceAll(/"/g, "'");
+    return `data:image/svg+xml,${s1}`;
+  } else {
+    const string1 = buffer?.toString("base64");
+    const s2 = string1?.replaceAll(/"/g, "'");
+    return `data:${contentType};base64,${s2}`;
+  }
+}
+
 async function inlineImages(document: Document, dir: string) {
   const arrayLike = document.querySelectorAll("img[src]");
   for (const img of Array.from(arrayLike)) {
@@ -141,17 +202,12 @@ async function inlineImages(document: Document, dir: string) {
       continue;
     }
     const resource = await extractedResource(src, dir);
-    const buffer = resource?.buffer;
-    if (!buffer) {
+    if (!resource?.buffer) {
       continue;
     }
-    const contentType: string = resource.contentType;
-    if (contentType == "image/svg+xml") {
-      const svg: string = buffer.toString("utf8");
-      img.setAttribute("src", `data:image/svg+xml,${svg}`);
-    } else {
-      const base64: string = buffer.toString("base64");
-      img.setAttribute("src", `data:${contentType};base64,${base64}`);
+    const dataSrc = makeDataUrl(resource);
+    if (dataSrc) {
+      img.setAttribute("src", dataSrc);
     }
   }
 }
