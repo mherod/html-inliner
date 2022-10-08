@@ -6,10 +6,10 @@ export async function transformAll(dir: string): Promise<number> {
   if (!existsSync(dir)) {
     throw new Error(`Directory ${dir} does not exist`);
   }
-  console.log("transforming all in " + dir);
+  // console.log("transforming all in " + dir);
   const files = [];
-  for (const path of walkDirectory(dir, ".html")) files.push(path);
-  for (const path of walkDirectory(dir, ".css")) files.push(path);
+  files.push(...walkDirectory(dir, ".html"));
+  files.push(...walkDirectory(dir, ".css"));
   const promises = [];
   for (const file of files) {
     const p = transformFile(dir, file).catch(console.error);

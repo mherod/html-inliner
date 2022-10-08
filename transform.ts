@@ -14,6 +14,10 @@ export function formatHtml(s: string): string {
   try {
     return prettier.format(s, { parser: "html" });
   } catch (error) {
+    console.warn(
+      yellow("format html failed"),
+      JSON.stringify(error).substring(0, 100)
+    );
     return s;
   }
 }
@@ -22,6 +26,10 @@ export function formatLess(s: string): string {
   try {
     return prettier.format(s, { parser: "less" });
   } catch (error) {
+    console.warn(
+      yellow("format less failed"),
+      JSON.stringify(error).substring(0, 100)
+    );
     return s;
   }
 }
@@ -30,6 +38,10 @@ export function formatJavascript(s: string): string {
   try {
     return prettier.format(s, { parser: "babel" });
   } catch (error) {
+    console.warn(
+      yellow("format javascript failed"),
+      JSON.stringify(error).substring(0, 100)
+    );
     return s;
   }
 }
@@ -40,7 +52,9 @@ async function fetchResource(url: URL): Promise<ExtractedResource> {
   return {
     href: url.href,
     buffer: Buffer.from(result1),
-    contentType: res.headers.get("content-type") ?? (mime.lookup(url.pathname) || "application/octet-stream")
+    contentType:
+      res.headers.get("content-type") ??
+      (mime.lookup(url.pathname) || "application/octet-stream")
   };
 }
 
@@ -49,6 +63,7 @@ async function extractedResource(
   dir: string,
   post?: (s: Buffer) => Buffer | Promise<Buffer>
 ): Promise<ExtractedResource | undefined> {
+  href = href.trim().replace(/^"/, "").replace(/"$/, "").trim();
 
   if (cache.has(href)) {
     return cache.get(href) as ExtractedResource;
@@ -64,7 +79,6 @@ async function extractedResource(
   let buffer: Buffer;
   let extractedResource: ExtractedResource | undefined;
   if (existsSync(filePath)) {
-    console.log(yellow("source from file"), filePath);
     const contentType = mime.lookup(filePath);
     if (!contentType) {
       console.log(red("unknown content type"), filePath);
@@ -77,11 +91,11 @@ async function extractedResource(
     };
   } else if (url instanceof URL) {
     const url1: URL = url!;
-    if (url1.protocol === "http:" || url1.protocol === "https:") {
-      console.log("source from url", url1.href);
+    if (ignoreUrl(url1.href)) {
+      return;
+    } else if (url1.protocol === "http:" || url1.protocol === "https:") {
       extractedResource = await fetchResource(url1);
     } else if (url1.protocol === "data:") {
-      console.log("source from data url", url1.href);
       extractedResource = {
         href: href,
         buffer: Buffer.from(url1.href),
@@ -89,7 +103,7 @@ async function extractedResource(
       };
     }
   } else {
-    console.log(red("source not found"), href);
+    return;
   }
   if (extractedResource?.buffer) {
     buffer = extractedResource.buffer;
@@ -108,25 +122,27 @@ async function transformStyles(s: string, dir: string) {
   const urls = s.matchAll(/url\(([^)]+)\)/g);
   const urls2 = Array.from(urls).map((url) => url[1]);
   await Promise.all(urls2.map((url) => extractedResource(url, dir)));
-  const s1: string = s.replaceAll(/url\(["']?([^)]+)["']?\)/g, (match: string, p1: string) => {
-    if (ignoreUrl(p1)) {
-      return match;
+  const s1: string = s.replaceAll(
+    /url\(["']?([^)]+)["']?\)/g,
+    (match: string, p1: string) => {
+      if (ignoreUrl(p1)) {
+        return match;
+      }
+      let url: URL | undefined;
+      try {
+        url = new URL(p1);
+      } catch (e) {
+        console.log(red("invalid url"), p1.substring(0, 100));
+      }
+      if (!url) {
+        return match;
+      }
+      const s2 = url.href;
+      const resource = cache.get(s2);
+      const s3 = resource ? makeDataUrl(resource) : s2;
+      return `url('${encodeURI(s3).replaceAll(/'/g, "\\'")}')`;
     }
-    let url: URL | undefined;
-    try {
-      url = new URL(p1);
-    } catch (e) {
-      console.log(red("invalid url"), p1.substring(0, 100));
-    }
-    if (!url) {
-      return match;
-    }
-    console.log("url", green(p1));
-    const s2 = url.href;
-    const resource = cache.get(s2);
-    const s3 = resource ? makeDataUrl(resource) : s2;
-    return `url('${encodeURI(s3).replaceAll(/'/g, "\\'")}')`;
-  });
+  );
   return formatLess(s1);
 }
 
@@ -138,11 +154,15 @@ async function inlineStyles(document: Document, dir: string) {
     link.remove();
     const style = document.createElement("style");
     style.setAttribute("type", "text/css");
-    const resource = await extractedResource(href, dir, async (buffer: Buffer): Promise<Buffer> => {
-      const stylesheet: string = buffer.toString("utf8");
-      const transformedStyles = await transformStyles(stylesheet, dir);
-      return Buffer.from(transformedStyles, "utf8");
-    });
+    const resource = await extractedResource(
+      href,
+      dir,
+      async (buffer: Buffer): Promise<Buffer> => {
+        const stylesheet: string = buffer.toString("utf8");
+        const transformedStyles = await transformStyles(stylesheet, dir);
+        return Buffer.from(transformedStyles, "utf8");
+      }
+    );
     const resourceBuffer = resource?.buffer;
     if (resourceBuffer) {
       style.textContent = resourceBuffer.toString("utf8");
@@ -167,13 +187,17 @@ async function inlineJavascript(document: Document, dir: string) {
   for (const script of Array.from(arrayLike)) {
     const src: string = script.getAttribute("src") ?? "";
     script.removeAttribute("src");
-    const resource = await extractedResource(src, dir, (buffer: Buffer): Buffer => {
-      const s = buffer.toString("utf8");
-      const s1 = formatJavascript(s);
-      const s2 = removeSourceMap(s1);
-      const s3 = s2.trim();
-      return Buffer.from(s3, "utf8");
-    });
+    const resource = await extractedResource(
+      src,
+      dir,
+      (buffer: Buffer): Buffer => {
+        const s = buffer.toString("utf8");
+        const s1 = formatJavascript(s);
+        const s2 = removeSourceMap(s1);
+        const s3 = s2.trim();
+        return Buffer.from(s3, "utf8");
+      }
+    );
     const resourceBuffer = resource?.buffer;
     if (resourceBuffer) {
       script.textContent = resourceBuffer.toString("utf8");
@@ -262,12 +286,10 @@ export async function transformHtml(inputHtml: string, dir: string) {
   }
 
   if (!argv.find((arg) => arg.startsWith("--no-inline-css"))) {
-    console.log("inlining css");
     await inlineStyles(document, dir);
   }
 
   if (!argv.find((arg) => arg.startsWith("--no-inline-js"))) {
-    console.log("inlining js");
     await inlineJavascript(document, dir);
   }
 
@@ -282,21 +304,47 @@ export async function transformHtml(inputHtml: string, dir: string) {
   return formatHtml(html);
 }
 
+function padString(s: string, n: number): string {
+  return s.padStart(n, " ");
+}
+
 export async function transformFile(dir: string, fileName: string) {
   if (!existsSync(fileName)) {
     throw new Error("file does not exist: " + fileName.substring(0, 100));
   }
-  console.log("transforming", fileName);
+  const fileNameForPrint = fileName.substring(dir.length).slice(-30);
+  // console.log(blue("Transforming"), fileNameForPrint);
   const inputText: string = readFileSync(fileName, "utf8");
-  const fileType = mime.lookup(fileName);
   let outputText: string = inputText;
-  if (fileType == "text/html") {
-    outputText = await transformHtml(inputText, dir);
-  } else if (fileType == "text/css") {
-    outputText = await transformStyles(inputText, dir);
+  switch (mime.lookup(fileName)) {
+    case "text/html":
+      outputText = await transformHtml(inputText, dir);
+      break;
+    case "text/css":
+      outputText = await transformStyles(inputText, dir);
+      break;
   }
   if (inputText != outputText) {
-    console.log("writing", fileName);
+    const increase = outputText.length - inputText.length;
+    if (increase > 1024 * 1024) {
+      console.log(
+        padString(fileNameForPrint, 30),
+        yellow("Increased by"),
+        red((increase / 1024 / 1024).toFixed(1) + "MB")
+      );
+    } else if (increase > 1024) {
+      console.log(
+        padString(fileNameForPrint, 30),
+        yellow("Increased by"),
+        yellow((increase / 1024).toFixed(1) + "KB"),
+      );
+    } else if (increase > 0) {
+      console.log(
+        padString(fileNameForPrint, 30),
+        yellow("Increased by"),
+        green(increase.toFixed(1) + "B"),
+      );
+    }
     writeFileSync(fileName, outputText, "utf8");
   }
   return outputText ?? "";
