@@ -100,12 +100,16 @@ async function extractedResource(
   return extractedResource;
 }
 
+function ignoreUrl(url: string) {
+  return url.startsWith("data:") || url.startsWith("#");
+}
+
 async function transformStyles(s: string, dir: string) {
   const urls = s.matchAll(/url\(([^)]+)\)/g);
   const urls2 = Array.from(urls).map((url) => url[1]);
   await Promise.all(urls2.map((url) => extractedResource(url, dir)));
-  const s1: string = s.replaceAll(/url\(([^)]+)\)/g, (match: string, p1: string) => {
-    if (p1.startsWith("data:")) {
+  const s1: string = s.replaceAll(/url\(["']?([^)]+)["']?\)/g, (match: string, p1: string) => {
+    if (ignoreUrl(p1)) {
       return match;
     }
     let url: URL | undefined;
@@ -240,7 +244,7 @@ async function inlinePictureSources(document: Document, dir: string) {
   }
 }
 
-export async function transformHtml(dir: string, inputHtml: string) {
+export async function transformHtml(inputHtml: string, dir: string) {
   const { window }: JSDOM = new JSDOM(inputHtml);
   const { document }: DOMWindow = window;
 
@@ -278,15 +282,24 @@ export async function transformHtml(dir: string, inputHtml: string) {
   return formatHtml(html);
 }
 
-export async function transformFile(dir: string, sourceHtml: string) {
-  if (!existsSync(sourceHtml)) {
-    throw new Error("file does not exist: " + sourceHtml.substring(0, 100));
+export async function transformFile(dir: string, fileName: string) {
+  if (!existsSync(fileName)) {
+    throw new Error("file does not exist: " + fileName.substring(0, 100));
   }
-  console.log("transforming", sourceHtml);
-  const inputHtml: string = readFileSync(sourceHtml, "utf8");
-  const outputHtml: string = await transformHtml(dir, inputHtml);
-  writeFileSync(sourceHtml, outputHtml, "utf8");
-  return outputHtml;
+  console.log("transforming", fileName);
+  const inputText: string = readFileSync(fileName, "utf8");
+  const fileType = mime.lookup(fileName);
+  let outputText: string = inputText;
+  if (fileType == "text/html") {
+    outputText = await transformHtml(inputText, dir);
+  } else if (fileType == "text/css") {
+    outputText = await transformStyles(inputText, dir);
+  }
+  if (inputText != outputText) {
+    console.log("writing", fileName);
+    writeFileSync(fileName, outputText, "utf8");
+  }
+  return outputText ?? "";
 }
 
 interface ExtractedResource {
