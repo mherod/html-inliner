@@ -7,6 +7,7 @@ import * as prettier from "prettier";
 import { argv } from "./argv";
 import { green, red, yellow } from "colorette";
 import mime from "mime-types";
+import CleanCSS from "clean-css";
 
 const cache = new LRUCache<string, ExtractedResource>({ max: 1000 });
 
@@ -119,6 +120,12 @@ function ignoreUrl(url: string) {
 }
 
 async function transformStyles(s: string, dir: string) {
+  // @ts-ignore
+  const a = await new CleanCSS({
+    inline: ["all"],
+    level: 2
+  }).minify(s);
+  s = a.styles
   const urls = s.matchAll(/url\(([^)]+)\)/g);
   const urls2 = Array.from(urls).map((url) => url[1]);
   await Promise.all(urls2.map((url) => extractedResource(url, dir)));
