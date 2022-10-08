@@ -119,38 +119,37 @@ function ignoreUrl(url: string) {
   return url.startsWith("data:") || url.startsWith("#");
 }
 
-async function transformStyles(s: string, dir: string) {
-  // @ts-ignore
-  const a = await new CleanCSS({
+async function transformStyles(input: string, dir: string) {
+  const cleanCssOutput: CleanCSS.Output = new CleanCSS({
     inline: ["all"],
     level: 2
-  }).minify(s);
-  s = a.styles
-  const urls = s.matchAll(/url\(([^)]+)\)/g);
-  const urls2 = Array.from(urls).map((url) => url[1]);
-  await Promise.all(urls2.map((url) => extractedResource(url, dir)));
-  const s1: string = s.replaceAll(
-    /url\(["']?([^)]+)["']?\)/g,
-    (match: string, p1: string) => {
-      if (ignoreUrl(p1)) {
-        return match;
-      }
-      let url: URL | undefined;
-      try {
-        url = new URL(p1);
-      } catch (e) {
-        console.log(red("invalid url"), p1.substring(0, 100));
-      }
-      if (!url) {
-        return match;
-      }
-      const s2 = url.href;
-      const resource = cache.get(s2);
-      const s3 = resource ? makeDataUrl(resource) : s2;
-      return `url('${encodeURI(s3).replaceAll(/'/g, "\\'")}')`;
-    }
-  );
-  return formatLess(s1);
+  }).minify(input);
+  const styles: string = cleanCssOutput.styles
+  // const urls = styles.matchAll(/url\(([^)]+)\)/g);
+  // const urls2 = Array.from(urls).map((url) => url[1]);
+  // await Promise.all(urls2.map((url) => extractedResource(url, dir)));
+  // const s1: string = styles.replaceAll(
+  //   /url\(["']?([^)]+)["']?\)/g,
+  //   (match: string, p1: string) => {
+  //     if (ignoreUrl(p1)) {
+  //       return match;
+  //     }
+  //     let url: URL | undefined;
+  //     try {
+  //       url = new URL(p1);
+  //     } catch (e) {
+  //       console.log(red("invalid url"), p1.substring(0, 100));
+  //     }
+  //     if (!url) {
+  //       return match;
+  //     }
+  //     const s2 = url.href;
+  //     const resource = cache.get(s2);
+  //     const s3 = resource ? makeDataUrl(resource) : s2;
+  //     return `url('${encodeURI(s3).replaceAll(/'/g, "\\'")}')`;
+  //   }
+  // );
+  return formatLess(styles);
 }
 
 async function inlineStyles(document: Document, dir: string) {
