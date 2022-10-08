@@ -42,51 +42,44 @@ async function fetchResource(url: URL): Promise<ExtractedResource> {
   };
 }
 
-async function extracted(
+async function extractedResource(
   href: string,
   dir: string,
   post?: (s: Buffer) => Buffer
-): Promise<ExtractedResource> {
+): Promise<ExtractedResource | undefined> {
 
   if (cache.has(href)) {
     return cache.get(href) as ExtractedResource;
   }
 
-  const url = new URL(href);
+  let url: URL | undefined;
+  try {
+    url = new URL(href);
+  } catch (e) {
 
-  const filePath = path.join(dir, url.pathname);
+  }
+  const pathname = url?.pathname ?? href;
+  const filePath = path.join(dir, pathname);
   let buffer: Buffer;
-  let extractedResource;
+  let extractedResource: ExtractedResource | undefined;
   if (existsSync(filePath)) {
     console.log("source from file", filePath);
     extractedResource = {
       href: href,
       buffer: readFileSync(filePath),
-      contentType: url.pathname.endsWith(".css") ? "text/css" : "text/javascript"
+      contentType: pathname.endsWith(".css") ? "text/css" : "text/javascript"
     };
-  } else {
+  } else if (url) {
     console.log("source from url", url);
     extractedResource = await fetchResource(url);
   }
-  buffer = extractedResource.buffer;
-  buffer = post ? post?.(buffer) ?? buffer : buffer;
-  extractedResource.buffer = buffer;
-  cache.set(href, extractedResource);
+  if (extractedResource?.buffer) {
+    buffer = extractedResource.buffer;
+    buffer = post ? post?.(buffer) ?? buffer : buffer;
+    extractedResource.buffer = buffer;
+    cache.set(href, extractedResource);
+  }
   return extractedResource;
-}
-
-function formatScriptFunction(buffer: Buffer): Buffer {
-  const s = buffer.toString("utf8");
-  const s1 = formatJavascript(s);
-  const s2 = removeSourceMap(s1);
-  const s3 = s2.trim();
-  return Buffer.from(s3, "utf8");
-}
-
-function formatLessFunction(buffer: Buffer): Buffer {
-  const s = buffer.toString("utf8");
-  const s1 = formatLess(s);
-  return Buffer.from(s1);
 }
 
 async function inlineStyles(document: Document, distDir: string) {
@@ -97,7 +90,15 @@ async function inlineStyles(document: Document, distDir: string) {
     link.remove();
     const style = document.createElement("style");
     style.setAttribute("type", "text/css");
-    style.textContent = await extracted(href, distDir, formatLessFunction).then(({ buffer }) => buffer.toString("utf8"));
+    const resource = await extractedResource(href, distDir, (buffer: Buffer): Buffer => {
+      const s = buffer.toString("utf8");
+      const s1 = formatLess(s);
+      return Buffer.from(s1);
+    });
+    const resourceBuffer = resource?.buffer;
+    if (resourceBuffer) {
+      style.textContent = resourceBuffer.toString("utf8");
+    }
 
     parentNode?.appendChild(style);
   }
@@ -118,9 +119,17 @@ async function inlineJavascript(document: Document, dir: string) {
   for (const script of Array.from(arrayLike)) {
     const src: string = script.getAttribute("src") ?? "";
     script.removeAttribute("src");
-    script.textContent = await extracted(src, dir, formatScriptFunction).then(({ buffer }) => buffer.toString("utf8"));
-
-
+    const resource = await extractedResource(src, dir, (buffer: Buffer): Buffer => {
+      const s = buffer.toString("utf8");
+      const s1 = formatJavascript(s);
+      const s2 = removeSourceMap(s1);
+      const s3 = s2.trim();
+      return Buffer.from(s3, "utf8");
+    });
+    const resourceBuffer = resource?.buffer;
+    if (resourceBuffer) {
+      script.textContent = resourceBuffer.toString("utf8");
+    }
   }
 }
 
@@ -131,9 +140,12 @@ async function inlineImages(document: Document, dir: string) {
     if (src.startsWith("data:")) {
       continue;
     }
-    const resource: ExtractedResource = await extracted(src, dir);
+    const resource = await extractedResource(src, dir);
+    const buffer = resource?.buffer;
+    if (!buffer) {
+      continue;
+    }
     const contentType: string = resource.contentType;
-    const buffer = resource.buffer;
     if (contentType == "image/svg+xml") {
       const svg: string = buffer.toString("utf8");
       img.setAttribute("src", `data:image/svg+xml,${svg}`);
@@ -154,9 +166,12 @@ async function inlinePictureSources(document: Document, dir: string) {
     const srcset1 = await Promise.all(
       srcset.split(",").map(async (s) => {
         const [url, size] = s.trim().split(" ");
-        const resource: ExtractedResource = await extracted(url, dir);
+        const resource = await extractedResource(url, dir);
+        const buffer = resource?.buffer;
+        if (!buffer) {
+          return s;
+        }
         const contentType: string = resource.contentType;
-        const buffer: Buffer = resource.buffer;
         const base64: string = buffer.toString("base64");
         const s1 = `data:${contentType};base64,${base64} ${size ?? ""}`;
         return s1.trim();
@@ -178,8 +193,10 @@ export async function transformHtml(dir: string, inputHtml: string) {
     throw new Error("document is null");
   }
 
-  await inlineImages(document, dir);
-  await inlinePictureSources(document, dir);
+  if (!argv.find((arg) => arg === "--no-inline-images")) {
+    await inlineImages(document, dir);
+    await inlinePictureSources(document, dir);
+  }
 
   if (!argv.find((arg) => arg.startsWith("--no-inline-css"))) {
     console.log("inlining css");
