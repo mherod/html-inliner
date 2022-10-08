@@ -30,7 +30,7 @@ export function formatHtml(s: string): string {
   } catch (error) {
     console.warn(
       yellow("format html failed"),
-      JSON.stringify(error).substring(0, 100)
+      error
     );
     return s;
   }
@@ -42,7 +42,7 @@ export function formatLess(s: string): string {
   } catch (error) {
     console.warn(
       yellow("format less failed"),
-      JSON.stringify(error).substring(0, 100)
+      error
     );
     return s;
   }
@@ -54,7 +54,7 @@ export function formatJavascript(s: string): string {
   } catch (error) {
     console.warn(
       yellow("format javascript failed"),
-      JSON.stringify(error).substring(0, 100)
+      error
     );
     return s;
   }
