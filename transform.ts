@@ -183,7 +183,10 @@ function makeDataUrl(resource: ExtractedResource): string {
   if (!buffer) {
     return resource.href;
   }
-  if (contentType == "image/svg+xml") {
+  if (contentType.startsWith("text/")) {
+    const s = buffer.toString("utf8");
+    return `data:${contentType};charset=utf-8,${encodeURIComponent(s)}`;
+  } else if (contentType == "image/svg+xml") {
     const string = buffer?.toString("utf8");
     const s1 = string?.replaceAll(/"/g, "'");
     return `data:image/svg+xml,${s1}`;
