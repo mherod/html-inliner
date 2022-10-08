@@ -140,11 +140,12 @@ async function transformStyles(input: string, dir: string) {
   const styles: string = cleanCssOutput.styles
   const cssoOutput: Result = minify(styles);
   const styles1: string = cssoOutput.css;
-  const urls = styles1.matchAll(/url\(([^)]+)\)/g);
+  const urlExtractRegex = /\surl\(["']?([^)]+)["']?\)/g;
+  const urls = styles1.matchAll(urlExtractRegex);
   const urls2 = Array.from(urls).map((url) => url[1]);
   await Promise.all(urls2.map((url) => extractedResource(url, dir)));
   const styles2: string = styles1.replaceAll(
-    /url\(["']?([^)]+)["']?\)/g,
+    urlExtractRegex,
     (match: string, p1: string) => {
       if (ignoreUrl(p1)) {
         return match;
