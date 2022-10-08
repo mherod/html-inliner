@@ -8,8 +8,21 @@ import { argv } from "./argv";
 import { green, red, yellow } from "colorette";
 import mime from "mime-types";
 import CleanCSS from "clean-css";
+import { minify, Result } from "csso";
 
 const cache = new LRUCache<string, ExtractedResource>({ max: 1000 });
+
+export function formatXml(s: string): string {
+  try {
+    return prettier.format(s, { parser: "xml" });
+  } catch (error) {
+    console.warn(
+      yellow("format html failed"),
+      JSON.stringify(error).substring(0, 100)
+    );
+    return s;
+  }
+}
 
 export function formatHtml(s: string): string {
   try {
@@ -125,31 +138,33 @@ async function transformStyles(input: string, dir: string) {
     level: 2
   }).minify(input);
   const styles: string = cleanCssOutput.styles
-  // const urls = styles.matchAll(/url\(([^)]+)\)/g);
-  // const urls2 = Array.from(urls).map((url) => url[1]);
-  // await Promise.all(urls2.map((url) => extractedResource(url, dir)));
-  // const s1: string = styles.replaceAll(
-  //   /url\(["']?([^)]+)["']?\)/g,
-  //   (match: string, p1: string) => {
-  //     if (ignoreUrl(p1)) {
-  //       return match;
-  //     }
-  //     let url: URL | undefined;
-  //     try {
-  //       url = new URL(p1);
-  //     } catch (e) {
-  //       console.log(red("invalid url"), p1.substring(0, 100));
-  //     }
-  //     if (!url) {
-  //       return match;
-  //     }
-  //     const s2 = url.href;
-  //     const resource = cache.get(s2);
-  //     const s3 = resource ? makeDataUrl(resource) : s2;
-  //     return `url('${encodeURI(s3).replaceAll(/'/g, "\\'")}')`;
-  //   }
-  // );
-  return formatLess(styles);
+  const cssoOutput: Result = minify(styles);
+  const styles1: string = cssoOutput.css;
+  const urls = styles1.matchAll(/url\(([^)]+)\)/g);
+  const urls2 = Array.from(urls).map((url) => url[1]);
+  await Promise.all(urls2.map((url) => extractedResource(url, dir)));
+  const styles2: string = styles1.replaceAll(
+    /url\(["']?([^)]+)["']?\)/g,
+    (match: string, p1: string) => {
+      if (ignoreUrl(p1)) {
+        return match;
+      }
+      let url: URL | undefined;
+      try {
+        url = new URL(p1);
+      } catch (e) {
+        console.log(red("invalid url"), p1.substring(0, 100));
+      }
+      if (!url) {
+        return match;
+      }
+      const s2 = url.href;
+      const resource = cache.get(s2);
+      const s3 = resource ? makeDataUrl(resource) : s2;
+      return `url('${s3}')`;
+    }
+  );
+  return formatLess(styles2);
 }
 
 async function inlineStyles(document: Document, dir: string) {
@@ -222,8 +237,8 @@ function makeDataUrl(resource: ExtractedResource): string {
     return `data:${contentType};charset=utf-8,${encodeURIComponent(s)}`;
   } else if (contentType == "image/svg+xml") {
     const string = buffer?.toString("utf8");
-    const s1 = string?.replaceAll(/"/g, "'");
-    return `data:image/svg+xml,${s1}`;
+    const s2 = formatXml(string);
+    return `data:image/svg+xml,${encodeURIComponent(s2)}`;
   } else {
     const string1 = buffer?.toString("base64");
     const s2 = string1?.replaceAll(/"/g, "'");
