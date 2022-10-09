@@ -9,6 +9,7 @@ import { green, red, yellow } from "colorette";
 import mime from "mime-types";
 import CleanCSS from "clean-css";
 import { minify, Result } from "csso";
+import { optimize, OptimizedError, OptimizedSvg } from "svgo";
 
 const cache = new LRUCache<string, ExtractedResource>({ max: 1000 });
 
@@ -26,7 +27,9 @@ export function formatXml(s: string): string {
 
 export function formatHtml(s: string): string {
   try {
-    return prettier.format(s, { parser: "html" });
+    const s1 = s.replaceAll(/<[^>]+>/ig, (match) => `${match}
+`);
+    return prettier.format(s1, { parser: "html" });
   } catch (error) {
     console.warn(
       yellow("format html failed"),
@@ -60,15 +63,17 @@ export function formatJavascript(s: string): string {
   }
 }
 
-async function fetchResource(url: URL): Promise<ExtractedResource> {
-  const res = await fetch(url);
-  const result1: ArrayBuffer = await res.arrayBuffer();
+async function fetchResource(url: URL | string): Promise<ExtractedResource> {
+  const url1: URL = url instanceof URL ? url : new URL(url);
+  const res = await fetch(url1);
+  const arrayBuffer: ArrayBuffer = await res.arrayBuffer();
+  const headers = res.headers;
+  const contentType = headers.get("content-type") ??
+    (mime.lookup(url1.pathname) || "application/octet-stream");
   return {
-    href: url.href,
-    buffer: Buffer.from(result1),
-    contentType:
-      res.headers.get("content-type") ??
-      (mime.lookup(url.pathname) || "application/octet-stream")
+    href: url1.href,
+    buffer: Buffer.from(arrayBuffer),
+    contentType
   };
 }
 
@@ -101,7 +106,7 @@ async function extractedResource(
     extractedResource = {
       href: href,
       buffer: readFileSync(filePath),
-      contentType: contentType
+      contentType
     };
   } else if (url instanceof URL) {
     const url1: URL = url!;
@@ -137,7 +142,7 @@ async function transformStyles(input: string, dir: string) {
     inline: ["all"],
     level: 2
   }).minify(input);
-  const styles: string = cleanCssOutput.styles
+  const styles: string = cleanCssOutput.styles;
   const cssoOutput: Result = minify(styles);
   const styles1: string = cssoOutput.css;
   const urlExtractRegex = /\surl\(["']?([^)]+)["']?\)/g;
@@ -238,8 +243,12 @@ function makeDataUrl(resource: ExtractedResource): string {
     return `data:${contentType};charset=utf-8,${encodeURIComponent(s)}`;
   } else if (contentType == "image/svg+xml") {
     const string = buffer?.toString("utf8");
-    const s2 = formatXml(string);
-    return `data:image/svg+xml,${encodeURIComponent(s2)}`;
+    const s2: string = formatXml(string);
+    const result: OptimizedSvg | OptimizedError = optimize(s2, {
+      multipass: true,
+    });
+    const s3: string = "data" in result ? result.data : s2;
+    return `data:image/svg+xml,${encodeURIComponent(s3)}`;
   } else {
     const string1 = buffer?.toString("base64");
     const s2 = string1?.replaceAll(/"/g, "'");
@@ -290,12 +299,20 @@ async function inlinePictureSources(document: Document, dir: string) {
   }
 }
 
-export async function transformHtml(inputHtml: string, dir: string) {
+function documentFromHtml(inputHtml: string): Document {
   const { window }: JSDOM = new JSDOM(inputHtml);
   const { document }: DOMWindow = window;
+  return document;
+}
 
+export async function transformHtml(inputHtml: string, dir: string) {
+  const document: Document = documentFromHtml(inputHtml);
+
+  const firstTag = inputHtml.match(/<(\w+)[^>]+>/i)?.pop();
+  // noinspection HtmlRequiredLangAttribute
+  const hasHTML = firstTag?.match(/html/i) != null;
   // noinspection HtmlRequiredTitleElement
-  const hasHead = inputHtml.includes("<head>");
+  const hasHead = inputHtml.includes("<head>") || inputHtml.includes("<title>");
   const hasBody = inputHtml.includes("<body>");
 
   if (document == null) {
@@ -317,8 +334,8 @@ export async function transformHtml(inputHtml: string, dir: string) {
 
   const documentElement = document.documentElement ?? document.body;
 
-  if (hasHead && hasBody) {
-    const html2 = documentElement.innerHTML;
+  if (hasHTML || (hasHead && hasBody)) {
+    const html2 = documentElement.outerHTML;
     return removeSourceMap(formatHtml(html2));
   }
 
@@ -358,13 +375,13 @@ export async function transformFile(dir: string, fileName: string) {
       console.log(
         padString(fileNameForPrint, 30),
         yellow("Increased by"),
-        yellow((increase / 1024).toFixed(1) + "KB"),
+        yellow((increase / 1024).toFixed(1) + "KB")
       );
     } else if (increase > 0) {
       console.log(
         padString(fileNameForPrint, 30),
         yellow("Increased by"),
-        green(increase.toFixed(1) + "B"),
+        green(increase.toFixed(1) + "B")
       );
     }
     writeFileSync(fileName, outputText, "utf8");
