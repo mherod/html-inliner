@@ -4,10 +4,10 @@ import mime from "mime-types";
 
 export async function fetchResource(url: URL | string): Promise<ExtractedResource> {
   const url1: URL = url instanceof URL ? url : new URL(url);
-  const res = await fetch(url1);
+  const res: Response = await fetch(url1);
   const arrayBuffer: ArrayBuffer = await res.arrayBuffer();
-  const headers = res.headers;
-  const contentType = headers.get("content-type") ??
+  const headers: Headers = res.headers;
+  const contentType: string = headers.get("content-type") ??
     (mime.lookup(url1.pathname) || "application/octet-stream");
   return {
     href: url1.href,

@@ -1,7 +1,7 @@
 import CleanCSS from "clean-css";
 import { minify, Result } from "csso";
 
-export function minifyCss(input: string) {
+export function minifyStyles(input: string): string {
   const cleanCssOutput: CleanCSS.Output = new CleanCSS({
     inline: ["all"],
     level: 2

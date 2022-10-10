@@ -1,5 +1,12 @@
 import minimist from "minimist";
+import { merge } from "lodash";
 
-export const argv: string[] = process.argv ?? [];
+const defaultOpts = {
+  "inline-images": true,
+  "inline-styles": true,
+  "inline-js": true,
+};
 
-export const argvOptions = minimist(argv.slice(2));
+const argv = process.argv ?? [];
+
+export const argvOptions = merge(defaultOpts, minimist(argv.slice(2)));
