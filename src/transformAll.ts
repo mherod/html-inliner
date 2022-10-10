@@ -1,6 +1,6 @@
 import { existsSync } from "fs";
 import { walkDirectoryAsync } from "./util/files/walk-directory";
-import { blue } from "colorette";
+import { blue, yellow } from "colorette";
 import { transformFile } from "./transformFile";
 
 export async function transformAll(dir: string): Promise<number> {
@@ -13,7 +13,8 @@ export async function transformAll(dir: string): Promise<number> {
   ]);
   const promises = [];
   for (const file of walkedFiles.flat()) {
-    console.log(blue(`Transforming ${file}`));
+    const subFilePath: string = file.substring(dir.length);
+    console.log(blue(`Transforming`), yellow(subFilePath));
     const p = transformFile(dir, file).catch(console.error);
     promises.push(p);
   }

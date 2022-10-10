@@ -21,25 +21,16 @@ export async function transformHtml(inputHtml: string, dir: string): Promise<str
   const hasBody = inputHtml.includes("<body>");
 
   if (argvOptions["inline-images"]) {
-    console.log("Inlining images...");
     await inlineImages(document, dir);
     await inlinePictureSources(document, dir);
-  } else {
-    console.log("Skipping image inlining...");
   }
 
-  if (argvOptions["inline-css"]) {
-    console.log("Inlining styles...");
+  if (argvOptions["inline-styles"]) {
     await inlineStyles(document, dir);
-  } else {
-    console.log("Skipping style inlining...");
   }
 
   if (argvOptions["inline-js"]) {
-    console.log("Inlining javascript...");
     await inlineJavascript(document, dir);
-  } else {
-    console.log("Skipping javascript inlining...");
   }
 
   const documentElement = document.documentElement ?? document.body;

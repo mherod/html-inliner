@@ -3,6 +3,7 @@ import mime from "mime-types";
 import { green, red, yellow } from "colorette";
 import { transformHtml } from "./transformHtml";
 import { transformStyles } from "./transformStyles";
+import { argvOptions } from "./argv";
 
 export async function transformFile(dir: string, fileName: string) {
   if (!existsSync(fileName)) {
@@ -17,10 +18,14 @@ export async function transformFile(dir: string, fileName: string) {
       outputText = await transformHtml(inputText, dir);
       break;
     case "text/css":
-      outputText = await transformStyles(inputText, dir);
+      if (argvOptions["inline-styles"]) {
+        outputText = await transformStyles(inputText, dir);
+      } else {
+        outputText = inputText;
+      }
       break;
   }
-  if (inputText != outputText) {
+  if (outputText && inputText != outputText) {
     const increase = outputText.length - inputText.length;
     if (increase > 1024 * 1024) {
       console.log(
