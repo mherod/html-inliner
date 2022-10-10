@@ -3,6 +3,7 @@ export function removeSourceMap(s: string): string {
   const nl = "\n";
   return s
     .split(nl)
-    .map((line) => line.replaceAll(regExp, ""))
+    .map((line) => line.replaceAll(regExp, "").trim())
+    .filter((line) => line.match(/^\S+$/))
     .join(nl);
 }
