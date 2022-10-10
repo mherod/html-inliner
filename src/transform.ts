@@ -1,81 +1,21 @@
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import * as path from "path";
-import { fetch } from "cross-fetch";
 import { DOMWindow, JSDOM } from "jsdom";
 import LRUCache from "lru-cache";
-import * as prettier from "prettier";
 import { argv } from "./argv";
 import { green, red, yellow } from "colorette";
 import mime from "mime-types";
-import CleanCSS from "clean-css";
-import { minify, Result } from "csso";
 import { optimize, OptimizedError, OptimizedSvg } from "svgo";
+import { ignoreUrl } from "./ignoreUrl";
+import { minifyCss } from "./minifyCss";
+import { formatXml } from "./formatXml";
+import { formatHtml } from "./formatHtml";
+import { formatLess } from "./formatLess";
+import { formatJavascript } from "./formatJavascript";
+import { ExtractedResource } from "./extractedResource";
+import { fetchResource } from "./fetchResource";
 
 const cache = new LRUCache<string, ExtractedResource>({ max: 1000 });
-
-export function formatXml(s: string): string {
-  try {
-    return prettier.format(s, { parser: "xml" });
-  } catch (error) {
-    console.warn(
-      yellow("format html failed"),
-      JSON.stringify(error).substring(0, 100)
-    );
-    return s;
-  }
-}
-
-export function formatHtml(s: string): string {
-  try {
-    const s1 = s.replaceAll(/<[^>]+>/ig, (match) => `${match}
-`);
-    return prettier.format(s1, { parser: "html" });
-  } catch (error) {
-    console.warn(
-      yellow("format html failed"),
-      error
-    );
-    return s;
-  }
-}
-
-export function formatLess(s: string): string {
-  try {
-    return prettier.format(s, { parser: "less" });
-  } catch (error) {
-    console.warn(
-      yellow("format less failed"),
-      error
-    );
-    return s;
-  }
-}
-
-export function formatJavascript(s: string): string {
-  try {
-    return prettier.format(s, { parser: "babel" });
-  } catch (error) {
-    console.warn(
-      yellow("format javascript failed"),
-      error
-    );
-    return s;
-  }
-}
-
-async function fetchResource(url: URL | string): Promise<ExtractedResource> {
-  const url1: URL = url instanceof URL ? url : new URL(url);
-  const res = await fetch(url1);
-  const arrayBuffer: ArrayBuffer = await res.arrayBuffer();
-  const headers = res.headers;
-  const contentType = headers.get("content-type") ??
-    (mime.lookup(url1.pathname) || "application/octet-stream");
-  return {
-    href: url1.href,
-    buffer: Buffer.from(arrayBuffer),
-    contentType
-  };
-}
 
 async function extractedResource(
   href: string,
@@ -133,18 +73,8 @@ async function extractedResource(
   return extractedResource;
 }
 
-function ignoreUrl(url: string) {
-  return url.startsWith("data:") || url.startsWith("#");
-}
-
-async function transformStyles(input: string, dir: string) {
-  const cleanCssOutput: CleanCSS.Output = new CleanCSS({
-    inline: ["all"],
-    level: 2
-  }).minify(input);
-  const styles: string = cleanCssOutput.styles;
-  const cssoOutput: Result = minify(styles);
-  const styles1: string = cssoOutput.css;
+export async function transformStyles(input: string, dir: string): Promise<string> {
+  const styles1 = minifyCss(input);
   const urlExtractRegex = /\surl\(["']?([^)]+)["']?\)/g;
   const urls = styles1.matchAll(urlExtractRegex);
   const urls2 = Array.from(urls).map((url) => url[1]);
@@ -173,6 +103,34 @@ async function transformStyles(input: string, dir: string) {
   return formatLess(styles2);
 }
 
+export async function mergeAllStyleElements(document: Document, dir: string) {
+  const tagName = "style";
+  const qualifiedName = "type";
+  const textCss = "text/css";
+  const arrayLike2 = document.querySelectorAll(tagName);
+  const styleElements = Array.from(arrayLike2).filter(style => {
+    const attrs = style.attributes;
+    if (attrs.length === 0) {
+      return true;
+    }
+    if (attrs.length === 1) {
+      const attr = attrs[0];
+      return attr.name == qualifiedName && attr.value == textCss;
+    }
+    return false;
+  });
+  if (styleElements.length > 0) {
+    const allStyles = styleElements.map((style) => style.textContent).join("\n").replaceAll(/\s+/g, " ");
+    const style = document.createElement(tagName);
+    style.setAttribute(qualifiedName, textCss);
+    style.textContent = await transformStyles(allStyles, dir);
+    document.head.appendChild(style);
+    for (const style of styleElements) {
+      style.remove();
+    }
+  }
+}
+
 async function inlineStyles(document: Document, dir: string) {
   const arrayLike = document.querySelectorAll("link[rel=stylesheet]");
   for (const link of Array.from(arrayLike)) {
@@ -197,6 +155,7 @@ async function inlineStyles(document: Document, dir: string) {
 
     parentNode?.appendChild(style);
   }
+  await mergeAllStyleElements(document, dir);
 }
 
 export function removeSourceMap(s: string): string {
@@ -245,7 +204,7 @@ function makeDataUrl(resource: ExtractedResource): string {
     const string = buffer?.toString("utf8");
     const s2: string = formatXml(string);
     const result: OptimizedSvg | OptimizedError = optimize(s2, {
-      multipass: true,
+      multipass: true
     });
     const s3: string = "data" in result ? result.data : s2;
     return `data:image/svg+xml,${encodeURIComponent(s3)}`;
@@ -387,10 +346,4 @@ export async function transformFile(dir: string, fileName: string) {
     writeFileSync(fileName, outputText, "utf8");
   }
   return outputText ?? "";
-}
-
-interface ExtractedResource {
-  href: string;
-  buffer: Buffer;
-  contentType: string;
 }
