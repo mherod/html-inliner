@@ -6,7 +6,7 @@ import { makeDataUrl } from "./makeDataUrl";
 import { cache, extractedResource } from "./extractedResource";
 
 export async function transformStyles(inputStyles: string, dir: string): Promise<string> {
-  const styles1: string = minifyStyles(inputStyles);
+  const styles1: string = await minifyStyles(inputStyles);
   const urlExtractRegex: RegExp = /\surl\(["']?([^)]+)["']?\)/g;
   const urls = styles1.matchAll(urlExtractRegex);
   const urls2 = Array.from(urls).map((url) => url[1]);

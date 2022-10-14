@@ -3,7 +3,7 @@
     "src/**.ts",
     "src/**.tsx",
     "src/**.js",
-    "src/**.jsx",
+    "src/**.jsx"
   ],
   "compilerOptions": {
     "moduleResolution": "node",
@@ -12,12 +12,11 @@
       "node"
     ],
     "lib": [
-      "es2015",
-      "es2017",
       "es2021",
       "dom"
     ],
     "strict": true,
-    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true
   }
 }

@@ -1,3 +1,5 @@
+// noinspection ES6UnusedImports
+
 import { documentFromHtml } from "./documentFromHtml";
 import { argvOptions } from "./argv";
 import { inlineJavascript } from "./inlineJavascript";
@@ -29,9 +31,9 @@ export async function transformHtml(inputHtml: string, dir: string): Promise<str
     await inlineStyles(document, dir);
   }
 
-  if (argvOptions["inline-js"]) {
-    await inlineJavascript(document, dir);
-  }
+  // if (argvOptions["inline-js"]) {
+  //   await inlineJavascript(document, dir);
+  // }
 
   const documentElement = document.documentElement ?? document.body;
 

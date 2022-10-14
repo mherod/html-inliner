@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import mime from "mime-types";
-import { green, red, yellow } from "colorette";
+import { blue, green, red, yellow } from "colorette";
 import { transformHtml } from "./transformHtml";
 import { transformStyles } from "./transformStyles";
 import { argvOptions } from "./argv";
@@ -10,7 +10,10 @@ export async function transformFile(dir: string, fileName: string) {
     throw new Error("file does not exist: " + fileName.substring(0, 100));
   }
   const fileNameForPrint = fileName.substring(dir.length).slice(-30);
-  // console.log(blue("Transforming"), fileNameForPrint);
+  console.log(
+    blue("Transforming"),
+    yellow(fileNameForPrint)
+  );
   const inputText: string = readFileSync(fileName, "utf8");
   let outputText: string = inputText;
   switch (mime.lookup(fileName)) {

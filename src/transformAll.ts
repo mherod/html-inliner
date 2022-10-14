@@ -14,9 +14,14 @@ export async function transformAll(dir: string): Promise<number> {
   const promises = [];
   for (const file of walkedFiles.flat()) {
     const subFilePath: string = file.substring(dir.length);
-    console.log(blue(`Transforming`), yellow(subFilePath));
-    const p = transformFile(dir, file).catch(console.error);
-    promises.push(p);
+    console.log(
+      blue(`Transforming`),
+      yellow(subFilePath)
+    );
+    promises.push(
+      transformFile(dir, file).catch(console.error)
+    );
   }
-  return (await Promise.all(promises)).length;
+  const all = await Promise.all(promises);
+  return all.length;
 }

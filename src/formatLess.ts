@@ -5,10 +5,14 @@ export function formatLess(s: string): string {
   try {
     return prettier.format(s, { parser: "less" });
   } catch (error) {
-    console.warn(
-      yellow("format less failed"),
-      error
-    );
-    return s;
+    try {
+      return prettier.format(s, { parser: "css" });
+    } catch (error) {
+      console.warn(
+        yellow("format css failed"),
+        error
+      );
+      return s;
+    }
   }
 }

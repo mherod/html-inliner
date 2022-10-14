@@ -7,7 +7,6 @@ export async function inlineStyles(document: Document, dir: string) {
   for (const link of Array.from(arrayLike)) {
     const href: string = link.getAttribute("href") || "";
     const parentNode = link.parentNode;
-    link.remove();
     const style = document.createElement("style");
     style.setAttribute("type", "text/css");
     const resource = await extractedResource(
@@ -21,10 +20,10 @@ export async function inlineStyles(document: Document, dir: string) {
     );
     const resourceBuffer = resource?.buffer;
     if (resourceBuffer) {
+      link.remove();
       style.textContent = resourceBuffer.toString("utf8");
+      parentNode?.appendChild(style);
     }
-
-    parentNode?.appendChild(style);
   }
   await mergeAllStyleElements(document, dir);
 }

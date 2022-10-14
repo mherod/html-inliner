@@ -1,12 +1,8 @@
-import CleanCSS from "clean-css";
-import { minify, Result } from "csso";
+import postcss from "postcss";
+import cssnano from "cssnano";
 
-export function minifyStyles(input: string): string {
-  const cleanCssOutput: CleanCSS.Output = new CleanCSS({
-    inline: ["all"],
-    level: 2
-  }).minify(input);
-  const styles: string = cleanCssOutput.styles;
-  const cssoOutput: Result = minify(styles);
-  return cssoOutput.css;
+export async function minifyStyles(input: string): Promise<string> {
+  const postcss1 = postcss([cssnano]);
+  const processedCss = await postcss1.process(input, { from: undefined });
+  return processedCss.css;
 }
