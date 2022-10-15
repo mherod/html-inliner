@@ -4,7 +4,7 @@ import { merge } from "lodash";
 const defaultOpts = {
   "inline-images": true,
   "inline-styles": true,
-  "inline-js": true,
+  "inline-js": false,
 };
 
 const argv = process.argv ?? [];

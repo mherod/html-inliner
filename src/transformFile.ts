@@ -4,6 +4,7 @@ import { blue, green, red, yellow } from "colorette";
 import { transformHtml } from "./transformHtml";
 import { transformStyles } from "./transformStyles";
 import { argvOptions } from "./argv";
+import { readFileAsync } from "./util/files/read-file-async";
 
 export async function transformFile(dir: string, fileName: string) {
   if (!existsSync(fileName)) {
@@ -14,7 +15,7 @@ export async function transformFile(dir: string, fileName: string) {
     blue("Transforming"),
     yellow(fileNameForPrint)
   );
-  const inputText: string = readFileSync(fileName, "utf8");
+  const inputText: string = await readFileAsync(fileName, "utf8");
   let outputText: string = inputText;
   switch (mime.lookup(fileName)) {
     case "text/html":

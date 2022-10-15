@@ -31,17 +31,20 @@ export async function transformHtml(inputHtml: string, dir: string): Promise<str
     await inlineStyles(document, dir);
   }
 
-  // if (argvOptions["inline-js"]) {
-  //   await inlineJavascript(document, dir);
-  // }
+  if (argvOptions["inline-js"]) {
+    await inlineJavascript(document, dir);
+  }
 
   const documentElement = document.documentElement ?? document.body;
 
   if (hasHTML || (hasHead && hasBody)) {
     const html2 = documentElement.outerHTML;
-    return removeSourceMap(formatHtml(html2));
+    const formatHtml1 = formatHtml(html2);
+    const removeSourceMap1 = removeSourceMap(formatHtml1);
+    return formatHtml(removeSourceMap1);
   }
 
   const html = document.head.innerHTML + "" + document.body.innerHTML;
+
   return formatHtml(html);
 }
