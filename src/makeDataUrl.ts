@@ -3,6 +3,7 @@
 import { ExtractedResource } from "./extractedResource";
 import { formatXml } from "./formatXml";
 import { optimize, OptimizedError, OptimizedSvg } from "svgo";
+import { argvOptions } from "./argv";
 
 const allowedContentTypes = [
   "image/svg+xml",
@@ -10,6 +11,11 @@ const allowedContentTypes = [
   "image/jpeg",
   "image/gif"
 ];
+
+if (argvOptions["inline-fonts"]) {
+  allowedContentTypes.push("font/woff2");
+  allowedContentTypes.push("font/woff");
+}
 
 const maxDataUrlSize = 10000;
 
