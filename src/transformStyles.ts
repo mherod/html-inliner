@@ -2,7 +2,7 @@ import { minifyStyles } from "./minifyStyles";
 import { ignoreUrl } from "./ignoreUrl";
 import { red } from "colorette";
 import { formatLess } from "./formatLess";
-import { makeDataUrl } from "./makeDataUrl";
+import { makeInlineUrl } from "./makeInlineUrl";
 import { cache, ExtractedResource, extractedResource } from "./extractedResource";
 
 export async function transformStyles(inputStyles: string, dir: string): Promise<string> {
@@ -25,7 +25,7 @@ export async function transformStyles(inputStyles: string, dir: string): Promise
         return resource?.href == p1;
       });
       if (matchedResource) {
-        return `url('${makeDataUrl(matchedResource)}')`;
+        return `url('${makeInlineUrl(matchedResource)}')`;
       }
       let url: URL | undefined;
       try {
@@ -34,14 +34,14 @@ export async function transformStyles(inputStyles: string, dir: string): Promise
         console.log(red("invalid url"), p1.substring(0, 100));
       }
       if (!url) {
-        return match;
+        return `url('${p1}')`;
       }
       const s2 = url.href;
       const resource = cache.get(s2);
       if (resource) {
-        return `url('${makeDataUrl(resource)}')`;
+        return `url('${makeInlineUrl(resource)}')`;
       }
-      return match;
+      return `url('${p1}')`;
     }
   );
   return formatLess(styles3);

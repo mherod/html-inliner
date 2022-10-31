@@ -1,4 +1,4 @@
-import { makeDataUrl } from "./makeDataUrl";
+import { makeInlineUrl } from "./makeInlineUrl";
 import { extractedResource } from "./extractedResource";
 
 export async function inlineImages(document: Document, dir: string) {
@@ -12,7 +12,7 @@ export async function inlineImages(document: Document, dir: string) {
     if (!resource?.buffer) {
       continue;
     }
-    const dataSrc = makeDataUrl(resource);
+    const dataSrc = makeInlineUrl(resource);
     if (dataSrc) {
       img.setAttribute("src", dataSrc);
     }

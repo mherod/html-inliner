@@ -19,11 +19,25 @@ if (argvOptions["inline-fonts"]) {
 
 const maxDataUrlSize = 10000;
 
-export function makeDataUrl(resource: ExtractedResource): string {
+export function makeInlineUrl(resource: ExtractedResource): string {
+  let publicUrlHref = resource.href;
+  try {
+    const url = new URL(publicUrlHref);
+    publicUrlHref = url.href;
+  } catch (e) {
+    try {
+      if (argvOptions["public-url"]) {
+        const url = new URL(argvOptions["public-url"]);
+        url.pathname = publicUrlHref;
+        publicUrlHref = url.href;
+      }
+    } catch (e) {
+    }
+  }
   const contentType: string = resource.contentType;
   const buffer: Buffer | undefined = resource?.buffer;
   if (!buffer) {
-    return resource.href;
+    return publicUrlHref ?? resource.href;
   }
   if (contentType.startsWith("text/")) {
     const s = buffer.toString("utf8");
@@ -41,7 +55,7 @@ export function makeDataUrl(resource: ExtractedResource): string {
       return s4;
     } else {
       console.log(`Data URL for ${resource.href} too large: ${s4.length}`);
-      return resource.href;
+      return publicUrlHref ?? resource.href;
     }
   }
   if (allowedContentTypes.includes(contentType)) {
@@ -52,11 +66,11 @@ export function makeDataUrl(resource: ExtractedResource): string {
       return s4;
     } else {
       console.log(`Data URL for ${resource.href} too large: ${s4.length}`);
-      return resource.href;
+      return publicUrlHref ?? resource.href;
     }
   } else {
     console.log(`Skipping content type for data url inline: ${contentType}`);
     console.log(`Resource: ${resource.href}`);
   }
-  return resource.href;
+  return publicUrlHref ?? resource.href;
 }

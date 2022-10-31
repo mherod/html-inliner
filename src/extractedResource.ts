@@ -5,8 +5,13 @@ import { red } from "colorette";
 import { ignoreUrl } from "./ignoreUrl";
 import { fetchResource } from "./fetchResource";
 import LRUCache from "lru-cache";
+import { removeQuotePads } from "./removeQuotePads";
+import { urlOrNull } from "./urlOrNull";
 
 export interface ExtractedResource {
+  localPath: string;
+  url: string;
+  publishedUrl: string;
   href: string;
   buffer: Buffer;
   contentType: string;
@@ -19,19 +24,16 @@ export async function extractedResource(
   dir: string,
   post?: (s: Buffer) => Buffer | Promise<Buffer>
 ): Promise<ExtractedResource | undefined> {
-  href = href.trim().replace(/^"/, "").replace(/"$/, "").trim();
+  href = removeQuotePads(href);
 
   if (cache.has(href)) {
     return cache.get(href) as ExtractedResource;
   }
 
-  let url: URL | undefined;
-  try {
-    url = new URL(href);
-  } catch (e) {
-  }
+  const url = urlOrNull(href);
   const pathname = url?.pathname ?? href;
   const filePath = path.join(dir, pathname);
+
   let buffer: Buffer;
   let extractedResource: ExtractedResource | undefined;
   if (existsSync(filePath)) {

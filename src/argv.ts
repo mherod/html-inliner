@@ -5,7 +5,8 @@ const defaultOpts = {
   "inline-images": true,
   "inline-styles": true,
   "inline-js": false,
-  "inline-fonts": false
+  "inline-fonts": false,
+  "public-url": null
 };
 
 const argv = process.argv ?? [];
