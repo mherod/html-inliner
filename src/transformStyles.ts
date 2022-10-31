@@ -3,7 +3,8 @@ import { ignoreUrl } from "./ignoreUrl";
 import { red } from "colorette";
 import { formatLess } from "./formatLess";
 import { makeInlineUrl } from "./makeInlineUrl";
-import { cache, ExtractedResource, extractedResource } from "./extractedResource";
+import { cache, ExtractedResource } from "./extractedResource";
+import { extractResource } from "./extractResource";
 
 export async function transformStyles(inputStyles: string, dir: string): Promise<string> {
   const styles1: string = await minifyStyles(inputStyles);
@@ -12,7 +13,7 @@ export async function transformStyles(inputStyles: string, dir: string): Promise
   const urls = styles2.matchAll(urlExtractRegex);
   const urls2 = Array.from(urls).map((url) => url[1]);
   const urls3 = urls2.filter((url) => !ignoreUrl(url));
-  const extractedResources0 = await Promise.all(urls3.map((url) => extractedResource(url, dir)));
+  const extractedResources0 = await Promise.all(urls3.map((url) => extractResource(url, dir)));
   // @ts-ignore
   const extractedResources: ExtractedResource[] = extractedResources0.filter((resource) => resource?.buffer != null);
   const styles3: string = styles2.replaceAll(

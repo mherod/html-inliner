@@ -1,6 +1,6 @@
 import { mergeAllStyleElements } from "./mergeAllStyleElements";
 import { transformStyles } from "./transformStyles";
-import { extractedResource } from "./extractedResource";
+import { extractResource } from "./extractResource";
 
 export async function inlineStyles(document: Document, dir: string) {
   const arrayLike = document.querySelectorAll("link[rel=stylesheet]");
@@ -9,7 +9,7 @@ export async function inlineStyles(document: Document, dir: string) {
     const parentNode = link.parentNode;
     const style = document.createElement("style");
     style.setAttribute("type", "text/css");
-    const resource = await extractedResource(
+    const resource = await extractResource(
       href,
       dir,
       async (buffer: Buffer): Promise<Buffer> => {

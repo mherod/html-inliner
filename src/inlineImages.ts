@@ -1,5 +1,5 @@
 import { makeInlineUrl } from "./makeInlineUrl";
-import { extractedResource } from "./extractedResource";
+import { extractResource } from "./extractResource";
 
 export async function inlineImages(document: Document, dir: string) {
   const arrayLike = document.querySelectorAll("img[src]");
@@ -8,7 +8,7 @@ export async function inlineImages(document: Document, dir: string) {
     if (src.startsWith("data:")) {
       continue;
     }
-    const resource = await extractedResource(src, dir);
+    const resource = await extractResource(src, dir);
     if (!resource?.buffer) {
       continue;
     }

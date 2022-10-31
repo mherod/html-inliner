@@ -1,6 +1,6 @@
 {
   "name": "@mherod/html-inliner",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "",
   "source": "src/index.ts",
   "bin": "dist/cli.js",

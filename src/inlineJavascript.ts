@@ -1,12 +1,12 @@
 import { formatJavascript } from "./formatJavascript";
 import { removeSourceMap } from "./removeSourceMap";
-import { extractedResource } from "./extractedResource";
+import { extractResource } from "./extractResource";
 
 export async function inlineJavascript(document: Document, dir: string) {
   const arrayLike = document.querySelectorAll("script[src][type=module]");
   for (const script of Array.from(arrayLike)) {
     const src: string = script.getAttribute("src") ?? "";
-    const resource = await extractedResource(
+    const resource = await extractResource(
       src,
       dir,
       (buffer: Buffer): Buffer => {

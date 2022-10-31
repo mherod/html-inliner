@@ -1,4 +1,4 @@
-import { extractedResource } from "./extractedResource";
+import { extractResource } from "./extractResource";
 
 export async function inlinePictureSources(document: Document, dir: string) {
   const arrayLike = document.querySelectorAll("picture source[srcset]");
@@ -10,7 +10,7 @@ export async function inlinePictureSources(document: Document, dir: string) {
     const srcset1 = await Promise.all(
       srcset.split(",").map(async (s) => {
         const [url, size] = s.trim().split(" ");
-        const resource = await extractedResource(url, dir);
+        const resource = await extractResource(url, dir);
         const buffer = resource?.buffer;
         if (!buffer) {
           return s;
